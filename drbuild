@@ -2,7 +2,7 @@
 
 get_conf() {
   # Reading options from .drbuild
-  source .drbuild
+  source ./.drbuild
 }
 
 # simple prompt
