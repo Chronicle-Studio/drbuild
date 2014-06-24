@@ -1,0 +1,15 @@
+# drbuild.sh completion
+
+have drbuild &&
+_drbuild()
+{
+  local cur
+
+  COMPREPLY=()
+  _get_comp_words_by_ref cur
+
+  COMPREPLY=( $( compgen -W '-h --help --config --generate-config site \
+    symlinks contrib' -- "$cur" ) )
+
+} &&
+complete -F _drbuild drbuild

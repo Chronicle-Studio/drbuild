@@ -1,0 +1,228 @@
+#!/bin/bash
+
+get_conf() {
+  # Reading options from .drbuild
+  source .drbuild
+}
+
+# simple prompt
+prompt_yes_no() {
+  while true ; do
+    printf "$* [Y/n] "
+    read answer
+    if [ -z "$answer" ] ; then
+      return 0
+    fi
+    case $answer in
+      [Yy]|[Yy][Ee][Ss])
+        return 0
+        ;;
+      [Nn]|[Nn][Oo])
+        return 1
+        ;;
+      *)
+        echo "Please answer yes or no"
+        ;;
+    esac
+ done
+}
+
+show_help() {
+cat <<EOF
+
+  options:
+  -h, --help         show this help
+  --config           list config values from .drbuild
+  --generate-config  generate empty .drbuild config file
+  site               build entire drupal installation and symlinks
+  drush_install      install or reinstall site automatically with drush
+  symlinks           build symlinks only
+  contrib            build contrib packages only
+  reset              reset drupal installation without rebuilding packages
+
+EOF
+  return 0
+}
+
+show_conf() {
+cat <<EOF
+
+The following values were read from .drbuild in your resources directory.
+
+  DRUPAL_ROOT = $DRUPAL_ROOT
+  DRUSH = $DRUSH
+  DB_USER = $DB_USER
+  DB_PASS = $DB_PASS
+  DB_NAME = $DB_NAME
+  DB_HOST = $DB_HOST
+  GIT_REPO = $GIT_REPO
+  BUILD_FILE = $BUILD_FILE
+  PROFILE_NAME = $PROFILE_NAME
+
+EOF
+  return 0
+}
+
+generate_config() {
+  if ! prompt_yes_no "Are you sure you want to proceed?" ; then
+    echo "‎(╯°□°)╯ ┻━┻"
+    return 1
+  fi
+
+cat > .drbuild <<EOF
+#!/bin/bash
+DRUSH=/path/to/drush
+DRUPAL_ROOT=/path/to/drupal/installation
+
+DB_USER=
+DB_PASS=
+DB_NAME=
+DB_HOST=
+
+GIT_REPO=/path/to/git/project
+
+BUILD_FILE=build-example.make
+PROFILE_NAME=example_profile
+EOF
+
+  return 0
+}
+
+rebuild_site() {
+# Start our rebuilding
+cat <<EOF
+
+The following operations will be done:
+
+ 1. Delete $DRUPAL_ROOT
+ 2. Rebuild the Drupal directory in $DRUPAL_ROOT
+ 3. Re-install the $PROFILE_NAME install profile in $DRUPAL_ROOT
+ 4. Optionally install the site with drush - WARNING: This will wipe an existing
+    database if one exists!
+ 5. Create symlinks from your git repo in $GIT_REPO to the new site directory
+    in $DRUPAL_ROOT
+
+EOF
+
+  if ! prompt_yes_no "Are you sure you want to proceed?" ; then
+    echo "‎(╯°□°)╯ ┻━┻"
+    return 1
+  fi
+
+  echo 'Removing '$DRUPAL_ROOT' directory...'
+  sudo rm -rf $DRUPAL_ROOT
+  echo 'Executing drush make'
+  $DRUSH make --prepare-install $GIT_REPO"/"$BUILD_FILE $DRUPAL_ROOT -y
+  cd $DRUPAL_ROOT
+  return 0
+}
+
+drush_install() {
+  echo 'Do you want drush to install the site automatically for you?'
+
+  if ! prompt_yes_no "Are you sure you want to proceed?" ; then
+    echo 'NOTE: You will need to mannually create your database and install the site'
+    return 1
+  fi
+
+  cd $DRUPAL_ROOT
+  echo 'Re-installing site database'
+  $DRUSH si $PROFILE_NAME --db-url="mysql://$DB_USER:$DB_PASS@$DB_HOST/$DB_NAME" -y
+  echo 'Finished installing site.'
+}
+
+rebuild_symlinks() {
+  # Symlinks
+  echo 'Creating symlinks'
+  cd $DRUPAL_ROOT
+  rm -rf profiles/$PROFILE_NAME/modules/custom
+  rm -rf profiles/$PROFILE_NAME/themes/custom
+  rm profiles/$PROFILE_NAME/$PROFILE_NAME.info
+  rm profiles/$PROFILE_NAME/$PROFILE_NAME.install
+  rm profiles/$PROFILE_NAME/$PROFILE_NAME.install_callbacks.inc
+  rm profiles/$PROFILE_NAME/$PROFILE_NAME.profile
+  ln -s $GIT_REPO"/modules/custom" $DRUPAL_ROOT"/profiles/$PROFILE_NAME/modules/custom"
+  ln -s $GIT_REPO"/themes/custom" $DRUPAL_ROOT"/profiles/$PROFILE_NAME/themes/custom"
+  ln -s $GIT_REPO"/$PROFILE_NAME.info" $DRUPAL_ROOT"/profiles/"$PROFILE_NAME"/$PROFILE_NAME.info"
+  ln -s $GIT_REPO"/$PROFILE_NAME.install" $DRUPAL_ROOT"/profiles/"$PROFILE_NAME"/$PROFILE_NAME.install"
+  ln -s $GIT_REPO"/$PROFILE_NAME.install_callbacks.inc" $DRUPAL_ROOT"/profiles/"$PROFILE_NAME"/$PROFILE_NAME.install_callbacks.inc"
+  ln -s $GIT_REPO"/$PROFILE_NAME.profile" $DRUPAL_ROOT"/profiles/"$PROFILE_NAME"/$PROFILE_NAME.profile"
+  echo 'Done making symlinks.'
+  return 0
+}
+
+rebuild_contrib() {
+  echo 'Rebuilding contrib packages'
+  cd $DRUPAL_ROOT/profiles/$PROFILE_NAME
+  rm -rf modules/contrib themes/contrib libraries
+
+  $DRUSH -y make --no-core --contrib-destination=. $GIT_REPO/drupal-org.make
+  return 0
+}
+
+reset_install() {
+cat <<EOF
+
+The following operations will be done:
+
+ 1. Delete $DRUPAL_ROOT/sites/default/files
+ 2. Delete $DRUPAL_ROOT/sites/default/settings.php
+ 3. Prepare fresh settings.php and public files folder for installation
+
+EOF
+
+  if ! prompt_yes_no "Are you sure you want to proceed?" ; then
+    echo "‎(╯°□°)╯ ┻━┻"
+    return 1
+  fi
+
+  cd $DRUPAL_ROOT/sites/default
+
+  sudo rm -rf files settings.php
+  cp default.settings.php settings.php
+  mkdir files
+  chmod 777 files settings.php
+
+  return 0
+}
+
+case "$1" in
+  -h|--help)
+    show_help
+    ;;
+  --config)
+    get_conf
+    show_conf
+    ;;
+  --generate-config)
+    generate_config
+    ;;
+  site)
+    get_conf
+    rebuild_site
+    drush_install
+    rebuild_symlinks
+    ;;
+  drush_install)
+    get_conf
+    drush_install
+    ;;
+  symlinks)
+    get_conf
+    rebuild_symlinks
+    ;;
+  contrib)
+    get_conf
+    rebuild_contrib
+    ;;
+  reset)
+    get_conf
+    reset_install
+    ;;
+  *)
+    show_help
+    exit 1
+    ;;
+esac
+
+exit 0
