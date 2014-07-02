@@ -7,12 +7,9 @@ Note: These instructions are incomplete and will stay that way for a while. Sorr
 
 Installation
 ------------
-Eventually, I'll build an installer script but, for now, the old-fashioned way will have to do. Also, it's assumed that you already have a local *fill-in-the-blank*-AMP web server environment ready to go. 
+Run install.sh to symlink drbuild and drbuild-completion to their respective folders. It's assumed that you already have a local *fill-in-the-blank*-AMP web server environment ready to go. 
 
-Place drbuild in **~/bin** and make sure the script is executable by running: 
-```$ chmod +x ~/bin/drbuild```
-
-For bash-completion support, place drbuild-completion in **~/.bash_completion.d** and make sure it's executable as well. bash-completion may not be set up to read from .bash_completion.d by default. In that case, paste the following into **~/.bash_completion**.  
+Note: bash-completion may not be set up to read from .bash_completion.d by default. In that case, paste the following into **~/.bash_completion**.  
 ```. ~/.bash_completion.d/*```
 
 After all that's done, it's time to set up a config file in your drupal project.
